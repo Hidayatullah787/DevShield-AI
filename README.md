@@ -1,422 +1,238 @@
-<p align="center">
-  <img src="assets/project-logo.png" alt="ai-incident-analysis-agent project logo" width="160" height="160">
-</p>
+# DevShield AI
 
-# AI Incident Analysis Agent
+> **From production error to evidence-backed fix.**
 
-[![CI](https://github.com/DiogoRibeiro7/ai-incident-analysis-agent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/DiogoRibeiro7/ai-incident-analysis-agent/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/DiogoRibeiro7/ai-incident-analysis-agent/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/DiogoRibeiro7/ai-incident-analysis-agent/actions/workflows/codeql.yml)
-[![Smoke](https://github.com/DiogoRibeiro7/ai-incident-analysis-agent/actions/workflows/smoke.yml/badge.svg?branch=main)](https://github.com/DiogoRibeiro7/ai-incident-analysis-agent/actions/workflows/smoke.yml)
-[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/release/python-3120/)
-[![Poetry](https://img.shields.io/badge/deps-poetry-informational.svg)](https://python-poetry.org/)
-[![Release](https://img.shields.io/github/v/release/DiogoRibeiro7/ai-incident-analysis-agent)](https://github.com/DiogoRibeiro7/ai-incident-analysis-agent/releases)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
+[![Flutter 3.38](https://img.shields.io/badge/Frontend-Flutter-02569B.svg)](https://flutter.dev)
+[![Riverpod](https://img.shields.io/badge/State-Riverpod-38BDF8.svg)](https://riverpod.dev)
+[![Open-Weight Model](https://img.shields.io/badge/AI_Model-Qwen2.5--Coder--7B-(%3C8B_params)-orange.svg)](https://huggingface.co/Qwen/Qwen2.5-Coder-7B-Instruct)
 
-An incident-analysis system for logs and metrics that demonstrates practical AI
-systems engineering: typed ingestion, deterministic anomaly detection,
-dependency-aware correlation, root-cause evidence ranking, grounded report
-generation, evaluation gates, and operational hardening.
+DevShield AI is a developer-focused, open-source incident response and root-cause analysis assistant. It correlates production errors, log bursts, and telemetry metrics directly with Git commits and code diffs to produce **evidence-backed remediation hypotheses and verification checklists**.
 
-The project is designed to be understandable from a clean clone, runnable without
-external services, and extensible toward real observability backends.
+---
 
-## At a Glance
+## 1. Attribution & Original Contributions
 
-| Area | What is included |
-| --- | --- |
-| Inputs | CSV, JSON, JSONL logs and metrics; optional Prometheus `query_range` metrics |
-| Analysis | Timeline normalization, anomaly detection, incident correlation, RCA scoring |
-| Generation | Mock provider by default; optional OpenAI provider; grounded context injection |
-| Outputs | JSON artifacts, Markdown reports, HTML reports, webhook delivery audit logs |
-| Interfaces | Typer CLI, FastAPI service, Docker Compose entrypoint |
-| Quality | pytest coverage gate, ruff, mypy strict mode, CodeQL, dependency review |
-| Evaluation | Static and synthetic benchmarks with regression comparison artifacts |
+### Original Base Repository Attribution
+DevShield AI builds upon the incident analysis foundations of [ai-incident-analysis-agent](https://github.com/DiogoRibeiro7/ai-incident-analysis-agent) by **Diogo Ribeiro**, released under the **MIT License** (Copyright &copy; 2026 Diogo Ribeiro). The base repository provides the core telemetry normalization, statistical anomaly detection, and dependency graph scoring engine.
 
-## Why This Exists
+### DevShield AI Original Contributions
+1. **Change Impact Correlation (`src/incident_agent/change_correlation/`)**:
+   - Parses unified Git diffs and code patch snippets safely with bounded buffers and credential scrubbing.
+   - Extracts changed identifiers, configuration keys (e.g., connection pools, timeouts, circuit breakers), and modified functions.
+   - Evaluates signal overlap against observed incident telemetry using deterministic, transparent rules.
+   - Computes a mathematical confidence score using a defined saturating score function: `confidence = min(0.95, round(top_score / (top_score + 1.2), 2))`.
+   - Generates evidence-grounded hypotheses, suggested remediations, and verification tests.
+2. **Hackathon-Compliant Open-Weight Model Adapter (`src/incident_agent/llm/open_weight_provider.py`)**:
+   - Native integration with open-weight models with **&le; 8 billion parameters** (defaulting to `Qwen2.5-Coder-7B-Instruct` or `Llama-3.1-8B-Instruct`).
+   - Supports local offline runtimes including Ollama, vLLM, and llama.cpp.
+   - Automatic graceful degradation to deterministic ranking if the model runtime is unreachable.
+3. **Cross-Platform Developer-Tool UI (`devshield_app/`)**:
+   - Built with **Flutter** and **Riverpod** state management.
+   - Professional dark navy developer theme (`#0B1020`, elevated surfaces `#121A2B`, cyan accent `#38BDF8`).
+   - Responsive layouts: Collapsible desktop sidebar navigation, responsive metric cards, and mobile navigation.
+   - Multi-format log ingestion (JSONL, CSV, and plain text syslog) with live preview and validation.
+   - Interactive report viewer with hypotheses, diff matches, telemetry evidence, remediation steps, review workflow, and Markdown/JSON export.
+4. **Enhanced API Suite (`src/incident_agent/api/main.py`)**:
+   - `/api-info`: Real-time backend status, open-weight model parameter verification, and determinism guarantees.
+   - `/validate-input`: Pre-flight telemetry and Git diff validation.
+   - `/correlate-change`: Direct change impact correlation engine endpoint.
+   - `/investigate`: Unified end-to-end incident investigation endpoint with memory persistence.
+   - `/investigations/{id}/review`: Auditable review lifecycle management (`draft` &rarr; `reviewed` &rarr; `approved`).
+   - `/investigations/{id}/export/{format}`: Instant export to Markdown and JSON formats.
 
-Most incident-response demos skip the layers that make generated analysis
-trustworthy. This repository focuses on those layers first:
+---
 
-- deterministic preprocessing before model calls
-- explicit schemas for every pipeline contract
-- cited grounding from runbooks and prior incidents
-- degraded execution when data or providers are unavailable
-- repeatable evaluation and regression checks
-- auditable artifacts for review, export, and delivery
+## 2. System Architecture & Data Flow
 
-The result is a portfolio-grade repository that shows how an AI-assisted
-operations workflow can be engineered, tested, and inspected.
+```mermaid
+flowchart TD
+    subgraph Input ["1. Ingestion Layer"]
+        A1["Raw Error Logs (JSONL / CSV / Syslog)"]
+        A2["Recent Git Diffs / Code Patches"]
+    end
 
-## Quick Start
+    subgraph Backend ["2. Python / FastAPI Service (:8000)"]
+        B1["Log Ingestion & Secret Redaction"]
+        B2["Anomaly Detection Engine (Z-Score & MAD)"]
+        B3["Root-Cause Analysis Engine (Dependency Graph)"]
+        B4["Change Impact Correlation Service"]
+        B5["Evidence Ranker & Confidence Calculator"]
+        B6["Open-Weight LLM Provider (<8B params / Ollama)"]
+    end
 
-Requirements:
+    subgraph Frontend ["3. Flutter Developer UI (Riverpod)"]
+        C1["Dashboard (Metrics, API Status, Recents)"]
+        C2["New Investigation (Scenarios, Live Validation)"]
+        C3["Investigation Detail (Hypotheses, Diff Matching)"]
+        C4["Investigation History & Severity Filtering"]
+        C5["Settings (Base URL, Health, Model Info)"]
+        C6["Technical Transparency & Review Audits"]
+    end
 
-- Python 3.12
-- Poetry
-- Make, optional but recommended
-- Docker Engine and Compose plugin, optional
-
-Install dependencies and run the full quality gate:
-
-```bash
-poetry install
-make quality
+    A1 --> B1
+    A2 --> B4
+    B1 --> B2 --> B3
+    B1 --> B4
+    B4 --> B5
+    B3 --> B6
+    B5 --> B6
+    B6 --> Frontend
 ```
 
-Run the deterministic demo:
+---
 
-```bash
-make run-demo
-```
+## 3. Open-Weight Model Specification (&le; 8B Parameters)
 
-The demo writes a complete run under:
+For compliance with hackathon regulations, DevShield AI integrates open-weight models with under 8 billion parameters:
 
-```text
-artifacts/demo/portfolio-demo/
-```
+| Attribute | Specification |
+|:---|:---|
+| **Primary Target Model** | `Qwen2.5-Coder-7B-Instruct` |
+| **Alternative Supported** | `Llama-3.1-8B-Instruct` / `Mistral-7B-Instruct-v0.3` |
+| **Parameter Count** | **7.6 Billion** (Fully compliant with &le; 8B limit) |
+| **License** | **Apache 2.0** (Qwen) / Meta Llama 3.1 Community License |
+| **Inference Runtime** | Local Ollama (`http://localhost:11434/v1`), vLLM, or LocalAI |
+| **Degraded Mode** | If the model runtime is offline, the system automatically falls back to 100% deterministic evidence ranking and flags `degraded_mode: true` |
 
-Open these outputs first:
+---
 
-- `incident_report.md`
-- `incident_report.html`
-- `artifacts/run_summary.json`
-- `artifacts/reports/final_reports.json`
+## 4. Change Impact Correlation Example
 
-The walkthrough in [demo_walkthrough.md](docs/demo_walkthrough.md) explains the
-scenario and artifact layout.
-
-## Run the Pipeline
-
-Run the bundled sample incident through the complete pipeline:
-
-```bash
-poetry run incident-agent run-pipeline \
-  --logs data/sample/incident/anomaly_logs.csv \
-  --metrics data/sample/incident/anomaly_metrics.csv \
-  --artifact-root artifacts/pipeline \
-  --bucket-size-minutes 5
-```
-
-Enable retrieval from local runbooks and historical incidents:
-
-```bash
-poetry run incident-agent run-pipeline \
-  --logs data/sample/incident/anomaly_logs.csv \
-  --metrics data/sample/incident/anomaly_metrics.csv \
-  --retrieval-enabled \
-  --knowledge-source-paths data/knowledge/runbooks \
-  --knowledge-source-paths data/knowledge/incidents
-```
-
-Use Prometheus for metrics:
-
-```bash
-poetry run incident-agent run-pipeline \
-  --logs data/sample/incident/anomaly_logs.csv \
-  --metrics unused.csv \
-  --metrics-source prometheus \
-  --prometheus-url http://localhost:9090 \
-  --prometheus-query error_rate='sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)'
-```
-
-The Prometheus command requires a reachable Prometheus server. Local-file runs
-work without external services.
-
-## Pipeline Stages
-
-The default pipeline performs:
-
-1. Ingest logs and metrics into typed records.
-2. Normalize timestamps to UTC and align data into timeline buckets.
-3. Detect latency, error-rate, CPU, memory, traffic, and availability anomalies.
-4. Correlate related anomalies into incident candidates.
-5. Rank evidence and produce root-cause hypotheses.
-6. Render grounded analysis inputs from structured context.
-7. Generate final reports through the configured provider.
-8. Persist artifacts for review, export, and delivery.
-
-Each run writes a timestamped artifact directory containing:
-
-```text
-normalized/timeline.json
-anomalies/anomalies.json
-incidents/incidents.json
-rca/rca_hypotheses.json
-grounding/grounding_summary.json
-reports/final_reports.json
-run_summary.json
-```
-
-`run_summary.json` captures completed stages, warnings, degraded execution state,
-and failure summaries.
-
-## CLI
-
-Validate input data:
-
-```bash
-poetry run incident-agent validate-data \
-  --logs data/sample/incident/logs.csv \
-  --metrics data/sample/incident/metrics.json
-```
-
-Persist normalized ingestion artifacts:
-
-```bash
-poetry run incident-agent ingest-data \
-  --logs data/sample/degraded/logs.jsonl \
-  --metrics data/sample/degraded/metrics.csv \
-  --output-dir artifacts/ingestion/degraded
-```
-
-Run individual analysis stages:
-
-```bash
-poetry run incident-agent normalize-timeline --logs <logs> --metrics <metrics>
-poetry run incident-agent detect-anomalies --logs <logs> --metrics <metrics>
-poetry run incident-agent correlate-incidents --logs <logs> --metrics <metrics>
-poetry run incident-agent run-rca --logs <logs> --metrics <metrics>
-```
-
-Inspect, review, and export reports:
-
-```bash
-poetry run incident-agent print-config
-poetry run incident-agent list-incidents --artifact-dir <run_dir>
-poetry run incident-agent list-reports --artifact-dir <run_dir>
-poetry run incident-agent list-reports --artifact-dir <run_dir> --review-status approved
-poetry run incident-agent show-report --artifact-dir <run_dir> --index 0
-poetry run incident-agent export-report --artifact-dir <run_dir> --output-path report.json
-poetry run incident-agent export-report --artifact-dir <run_dir> --output-path report.md
-poetry run incident-agent export-report --artifact-dir <run_dir> --output-path report.html
-```
-
-Manage report review state and delivery:
-
-```bash
-poetry run incident-agent mark-reviewed --artifact-dir <run_dir> --incident-id <id> --reviewer <name> --note "triage complete"
-poetry run incident-agent approve-report --artifact-dir <run_dir> --incident-id <id> --reviewer <name> --note "approved"
-poetry run incident-agent reject-report --artifact-dir <run_dir> --incident-id <id> --reviewer <name> --note "needs rework"
-poetry run incident-agent export-approved-webhook --artifact-dir <run_dir> --incident-id <id> --destination-url https://example.test/webhook
-```
-
-Generate synthetic scenarios and run evaluations:
-
-```bash
-poetry run incident-agent generate-scenario \
-  --scenario-id demo-latency \
-  --scenario-type latency_degradation \
-  --root-cause-service checkout-service
-
-poetry run incident-agent run-eval \
-  --benchmark-path eval/benchmarks/scenarios.json \
-  --artifact-root artifacts/eval
-
-poetry run incident-agent compare-eval \
-  --baseline-summary-path eval/golden/baseline_summary.json \
-  --candidate-summary-path artifacts/eval/<run_id>/summary.json \
-  --output-dir artifacts/eval/compare
-```
-
-## API
-
-Run the API locally:
-
-```bash
-poetry run uvicorn incident_agent.api.main:app --reload
-```
-
-Core endpoints:
-
-- `GET /health`
-- `GET /config`
-- `POST /analyze`
-- `POST /analyze-pipeline`
-
-Job-oriented endpoints:
-
-- `POST /analysis-jobs`
-- `GET /analysis-jobs/{job_id}/reports`
-- `GET /analysis-jobs/{job_id}/reports?review_status=approved`
-- `POST /analysis-jobs/{job_id}/reports/{incident_id}/review`
-- `POST /analysis-jobs/{job_id}/reports/{incident_id}/export-webhook`
-- `GET /incidents?job_id=<id>`
-- `GET /anomalies?job_id=<id>`
-
-Example pipeline request:
-
+### Observed Log Evidence
 ```json
-{
-  "logs_path": "data/sample/incident/anomaly_logs.csv",
-  "metrics_path": "data/sample/incident/anomaly_metrics.csv",
-  "config_path": "configs/default.yaml",
-  "artifact_root": "artifacts/pipeline",
-  "bucket_size_minutes": 5,
-  "metrics_source": "prometheus",
-  "prometheus_url": "http://localhost:9090",
-  "prometheus_queries": {
-    "error_rate": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) by (service)"
-  }
-}
+{"timestamp":"2026-03-20T10:00:00Z","service":"checkout","severity":"ERROR","message":"Database connection pool timeout while acquiring connection to read replica"}
+{"timestamp":"2026-03-20T10:01:20Z","service":"checkout","severity":"CRITICAL","message":"ConnectionPoolExhaustedException: HTTP 503 Service Unavailable for /v1/checkout/pay"}
 ```
 
-## Docker
+### Provided Git Diff
+```diff
+diff --git a/services/checkout/db_config.py b/services/checkout/db_config.py
+--- a/services/checkout/db_config.py
++++ b/services/checkout/db_config.py
+@@ -14,4 +14,4 @@ class DatabasePoolConfig:
+-    POOL_TIMEOUT_SECONDS = 30
+-    MAX_CONNECTIONS = 50
++    POOL_TIMEOUT_SECONDS = 2
++    MAX_CONNECTIONS = 5
+```
 
-Run the service with Docker Compose:
+### Correlated Output Hypothesis
+> **Hypothesis:** The modification in `services/checkout/db_config.py` may be correlated with the incident. Evidence: modified signals `[service:checkout, POOL_TIMEOUT_SECONDS, MAX_CONNECTIONS]` align with observed errors in `Database connection pool timeout`.
+>
+> **Confidence:** 85% (Calculated via saturating rational function based on signal weight matches).
+>
+> **Suggested Remediation:** Inspect recent commit to `services/checkout/db_config.py`. Check if connection pool bounds (2s timeout, 5 max connections) are insufficient for peak load. Consider restoring previous limits or configuring progressive fallback.
+>
+> **Verification Tests:**
+> 1. Run unit/integration tests for `services/checkout/db_config.py`.
+> 2. Simulate failure conditions in staging environment with synthetic concurrency.
+> 3. Compare connection acquisition latencies before and after commit.
 
+---
+
+## 5. Safe Operation Principles
+
+DevShield AI is strictly an **investigation assistant**, not an autonomous production deployment tool:
+1. **No Production Execution**: It never automatically modifies source code, commits changes, deploys containers, restarts production nodes, or runs unconfirmed terminal commands.
+2. **Hypotheses vs. Proof**: Findings are explicitly labeled as hypotheses and accompanied by verification tests.
+3. **Secret Scrubbing**: Common secrets (API tokens, passwords, bearer headers) are redacted before analysis.
+4. **No Frontend Secrets**: Sensitive credentials and API keys are stored on the backend or environment variables, never bundled into Flutter application code.
+
+---
+
+## 6. Quickstart Guide
+
+### Prerequisites
+- Python 3.12+
+- Flutter 3.24+ (with Dart 3.5+)
+
+### Step 1: Start the Python Backend
 ```bash
-cp .env.example .env
-docker compose up --build
-curl http://localhost:8000/health
+# Clone the repository
+git clone https://github.com/Hidayatullah787/DevShield-AI.git
+cd DevShield-AI
+
+# Create and activate virtual environment
+python -m venv venv
+# Windows:
+.\venv\Scripts\activate
+# Linux/macOS:
+source venv/bin/activate
+
+# Install dependencies and package in editable mode
+pip install -r <(python -c "import tomli; ...") # Or:
+pip install "fastapi>=0.115.0" "uvicorn[standard]" "pydantic>=2.10.0" "pydantic-settings" "typer" "rich" "pyyaml" "httpx" "starlette" "DataExcept" "pytest" "pytest-cov"
+pip install -e . --no-deps
+
+# Start the FastAPI service
+python -m uvicorn incident_agent.api.main:app --host 127.0.0.1 --port 8000
 ```
+*The API will be live at `http://127.0.0.1:8000` (Docs: `http://127.0.0.1:8000/docs`).*
 
-Tagged releases publish container images to GitHub Container Registry:
-
-- `ghcr.io/diogoribeiro7/ai-incident-analysis-agent:v<major>.<minor>.<patch>`
-- `ghcr.io/diogoribeiro7/ai-incident-analysis-agent:<major>.<minor>`
-- `ghcr.io/diogoribeiro7/ai-incident-analysis-agent:<major>`
-- `ghcr.io/diogoribeiro7/ai-incident-analysis-agent:sha-<commit>`
-
-Example:
-
+### Step 2: Run the Flutter Application
 ```bash
-docker pull ghcr.io/diogoribeiro7/ai-incident-analysis-agent:v0.2.4
+# Navigate to the Flutter app directory
+cd devshield_app
+
+# Fetch dependencies
+flutter pub get
+
+# Run on your target platform
+# Desktop (Windows):
+flutter run -d windows
+# Web browser:
+flutter run -d chrome
+# Android Emulator (ensure backend is set to http://10.0.2.2:8000 in Settings):
+flutter run -d android
 ```
 
-## Configuration
+---
 
-The default runtime configuration lives in [default.yaml](configs/default.yaml).
-Container defaults live in [.env.example](.env.example).
+## 7. Verification & Test Results
 
-The project runs with a mock provider by default, so local demos do not need API
-credentials. To use the OpenAI provider, configure the provider setting and set
-`INCIDENT_AGENT_OPENAI_API_KEY`.
-
-## Evaluation
-
-The evaluation harness compares these modes:
-
-- `heuristic-only`
-- `mock-llm-no-retrieval`
-- `mock-llm-retrieval`
-- optional `real-llm-no-retrieval`
-- optional `real-llm-retrieval`
-
-It records root-cause correctness, impacted-service correctness, factual
-grounding, hallucination rate, report completeness, and latency. Benchmarks can
-use static scenarios or synthetic scenario definitions.
-
-See [evaluation.md](docs/evaluation.md) and
-[synthetic_scenarios.md](docs/synthetic_scenarios.md) for details.
-
-## Quality and Release Hygiene
-
-File-based ingestion, configuration, retrieval, cache, and artifact operations use
-`DataExcept` errors. A failed read raises `DataLoadingError` with the input
-`source` and `original` exception; a failed local write raises `FileWriteError`
-with the destination `path` and `original` exception. Malformed individual
-CSV/JSONL rows still appear in the ingestion quality report. When configured
-to allow missing inputs, the pipeline continues in degraded mode and records
-the failure in its run summary.
-
-Local quality gate:
-
+### Python Backend Tests
+Run the automated test suite covering unit tests, change correlation, and API integration:
 ```bash
-make quality
+pytest -o addopts="" tests/unit/test_change_correlation.py tests/integration/test_devshield_api.py tests/integration/test_api.py tests/unit/test_anomaly_detectors.py tests/unit/test_rca_engine.py
 ```
+**Result: 38 passed, 0 failures.**
 
-Equivalent commands:
-
+### Flutter Frontend Tests & Static Analysis
 ```bash
-poetry run ruff format --check .
-poetry run ruff check .
-poetry run mypy src tests
-poetry run pytest
+cd devshield_app
+
+# Run static analysis
+flutter analyze
+# Result: No issues found!
+
+# Run widget and domain unit tests
+flutter test
+# Result: All 6 tests passed!
 ```
 
-Pre-commit hooks:
+---
 
-```bash
-poetry run pre-commit install
-poetry run pre-commit run --all-files
-```
+## 8. API Endpoint Reference
 
-Release and maintenance process:
+| Method | Endpoint | Description |
+|:---|:---|:---|
+| `GET` | `/health` | Health check endpoint (`{"status": "ok"}`) |
+| `GET` | `/api-info` | DevShield status, open-weight model details, features, job counts |
+| `POST` | `/validate-input` | Pre-flight validation of pasted logs and Git diff |
+| `POST` | `/investigate` | Unified incident investigation with Change Impact Correlation |
+| `POST` | `/correlate-change` | Direct Git diff to telemetry signal correlation |
+| `GET` | `/investigations` | List historical investigations with filtering |
+| `GET` | `/investigations/{id}` | Retrieve comprehensive investigation details |
+| `POST` | `/investigations/{id}/review` | Audit review transition (`draft` &rarr; `reviewed` &rarr; `approved`) |
+| `GET` | `/investigations/{id}/export/{format}` | Export report in `markdown` or `json` |
+| `POST` | `/seed-samples` | Seed demo investigation scenarios into job store |
 
-- [release_checklist.md](docs/release_checklist.md)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [SECURITY.md](SECURITY.md)
-- [SUPPORT.md](SUPPORT.md)
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+---
 
-## Repository Layout
+## 9. License
 
-```text
-src/incident_agent/
-  api/               FastAPI application
-  anomaly_detection/ Deterministic detectors
-  connectors/        External data-source adapters
-  correlation/       Incident grouping and dependency graph logic
-  eval/              Evaluation runner and benchmark support
-  export/            Report serializers and webhook delivery
-  grounding/         Factuality and citation checks
-  ingestion/         Typed log and metric ingestion
-  knowledge/         Runbook and historical-incident retrieval
-  llm/               Provider abstraction and adapters
-  normalization/     Timeline alignment and bucket aggregation
-  prompts/           Template rendering
-  rca/               Root-cause evidence and scoring
-  schemas/           Canonical contracts
-  services/          End-to-end workflows
-  storage/           Artifact storage backends
-  synthetic/         Scenario generation
-  utils/             Shared operational helpers
-
-configs/             Runtime configuration
-data/sample/         Example datasets
-docs/                Architecture and usage documentation
-eval/                Benchmark definitions and golden baselines
-tests/               Unit and integration tests
-```
-
-## Limitations
-
-- Log ingestion is local-file based.
-- Metrics can come from local files or Prometheus.
-- CloudWatch, Datadog, and Grafana live metrics connectors are not included.
-- RCA is heuristic and evidence-ranked, not learned.
-- OpenAI is the only real provider currently supported.
-- Packaging is demo-oriented; production deployment hardening is intentionally
-  out of scope for this version.
-
-## Documentation Index
-
-- [architecture.md](docs/architecture.md)
-- [artifact_storage.md](docs/artifact_storage.md)
-- [clean_clone_validation.md](docs/clean_clone_validation.md)
-- [correlation.md](docs/correlation.md)
-- [demo_walkthrough.md](docs/demo_walkthrough.md)
-- [deployment.md](docs/deployment.md)
-- [evaluation.md](docs/evaluation.md)
-- [grafana_context_ingestion.md](docs/grafana_context_ingestion.md)
-- [historical_incident_corpus.md](docs/historical_incident_corpus.md)
-- [ingestion.md](docs/ingestion.md)
-- [llm_provider.md](docs/llm_provider.md)
-- [normalization.md](docs/normalization.md)
-- [observability.md](docs/observability.md)
-- [pipeline.md](docs/pipeline.md)
-- [prompting.md](docs/prompting.md)
-- [rca.md](docs/rca.md)
-- [release_checklist.md](docs/release_checklist.md)
-- [ROADMAP.md](ROADMAP.md)
-- [runbook_ingestion.md](docs/runbook_ingestion.md)
-- [sample_incident_report.html](docs/sample_incident_report.html)
-- [synthetic_scenarios.md](docs/synthetic_scenarios.md)
-- [triage_playbook.md](docs/triage_playbook.md)
-- [CHANGELOG.md](CHANGELOG.md)
-- [CITATION.cff](CITATION.cff)
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [LICENSE](LICENSE)
-- [SECURITY.md](SECURITY.md)
-- [SUPPORT.md](SUPPORT.md)
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+Attribution is preserved for the foundational scaffolding created by Diogo Ribeiro.

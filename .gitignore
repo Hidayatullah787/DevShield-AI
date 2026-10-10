@@ -28,9 +28,6 @@ htmlcov/
 .ruff_cache/
 .pyre/
 
-# Notebook and interactive artifacts
-.ipynb_checkpoints/
-
 # Environment and local config
 .env
 .env.*
@@ -51,4 +48,12 @@ eval/benchmarks/generated/
 Thumbs.db
 desktop.ini
 
-ROADMAP_FUTURE.md
+# Flutter & Dart files
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+devshield_app/.dart_tool/
+devshield_app/build/
+devshield_app/.flutter-plugins
+devshield_app/.flutter-plugins-dependencies
