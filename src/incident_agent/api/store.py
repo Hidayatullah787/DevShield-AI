@@ -13,6 +13,8 @@ from incident_agent.schemas.final_report import FinalIncidentReport, ReviewStatu
 from incident_agent.schemas.incident import CorrelatedIncidentCandidate
 from incident_agent.workflow.review import transition_report_review
 
+from incident_agent.change_correlation.models import ChangeCorrelationResult
+
 JobStatus = Literal["submitted", "completed", "failed"]
 
 
@@ -29,6 +31,9 @@ class AnalysisJobRecord(BaseModel):
     reports: list[FinalIncidentReport] = Field(default_factory=list)
     incidents: list[CorrelatedIncidentCandidate] = Field(default_factory=list)
     anomalies: list[AnomalyCandidate] = Field(default_factory=list)
+    change_correlation: ChangeCorrelationResult | None = None
+    service: str | None = None
+    environment: str | None = None
 
 
 class AnalysisJobStore:
@@ -59,6 +64,9 @@ class AnalysisJobStore:
         reports: list[FinalIncidentReport],
         incidents: list[CorrelatedIncidentCandidate],
         anomalies: list[AnomalyCandidate],
+        change_correlation: ChangeCorrelationResult | None = None,
+        service: str | None = None,
+        environment: str | None = None,
     ) -> AnalysisJobRecord:
         """Mark job as completed and attach generated artifacts."""
 
@@ -70,6 +78,9 @@ class AnalysisJobStore:
         existing.reports = reports
         existing.incidents = incidents
         existing.anomalies = anomalies
+        existing.change_correlation = change_correlation
+        existing.service = service
+        existing.environment = environment
         self._jobs[job_id] = existing
         return existing
 

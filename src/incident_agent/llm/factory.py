@@ -13,7 +13,9 @@ from incident_agent.llm.cache import CachedLLMProvider
 from incident_agent.llm.mock import MockLLMProvider
 from incident_agent.llm.openai_provider import OpenAIProvider
 
-ProviderName = Literal["mock", "openai"]
+from incident_agent.llm.open_weight_provider import OpenWeightProvider
+
+ProviderName = Literal["mock", "openai", "open_weight"]
 
 
 class LLMConfig(BaseModel):
@@ -54,6 +56,12 @@ def create_provider(
             max_retries=config.max_retries,
             retry_backoff_seconds=config.retry_backoff_seconds,
             model_pricing_usd_per_1k_tokens=config.model_pricing_usd_per_1k_tokens,
+        )
+    elif config.provider == "open_weight":
+        provider = OpenWeightProvider(
+            model=config.report_model,
+            timeout_seconds=config.timeout_seconds,
+            max_retries=config.max_retries,
         )
     else:
         raise LLMProviderError(f"Unsupported provider '{config.provider}'.")
